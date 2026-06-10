@@ -1,0 +1,4 @@
+allowBuilds:
+  bufferutil: true
+  unrs-resolver: true
+  zlib-sync: true
