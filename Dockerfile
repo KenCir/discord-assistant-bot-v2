@@ -22,6 +22,10 @@ COPY . .
 RUN pnpm run build
 RUN pnpm prune --prod --ignore-scripts
 
+FROM deps AS migration
+COPY . .
+CMD ["pnpm", "db:migrate"]
+
 FROM node:24.16.0-slim
 WORKDIR /app
 ENV NODE_ENV=production

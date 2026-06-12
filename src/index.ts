@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { Client, GatewayIntentBits } from 'discord.js';
 import { loadEvents } from './util/loaders.js';
+import { logger } from './util/logger.js';
 
 // Initialize the client
 const client = new Client({ intents: [GatewayIntentBits.Guilds] });
@@ -14,7 +15,7 @@ for (const event of events) {
 		try {
 			await event.execute(...args);
 		} catch (error) {
-			console.error(`Error executing event ${String(event.name)}:`, error);
+			logger.error(error, `Error executing event ${String(event.name)}.`);
 		}
 	});
 }
