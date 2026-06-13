@@ -45,6 +45,7 @@ export const IncidentSchema = z.object({
 });
 
 export const MaintenanceSchema = IncidentSchema.extend({
+	impact: z.string().nullable(),
 	scheduled_for: DateTimeOffset,
 	scheduled_until: DateTimeOffset,
 });
