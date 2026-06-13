@@ -209,3 +209,5 @@ dist
 .ionide
 
 # End of https://www.toptal.com/developers/gitignore/api/macos,linux,node,visualstudiocode
+
+compose.override.yml
