@@ -123,9 +123,10 @@ export function createStatusEmbed(
 	return embed;
 }
 
-export function createIncidentEmbed(incident: StatusIncident): EmbedBuilder {
+export function createIncidentEmbed(serviceName: string, baseUrl: string, incident: StatusIncident): EmbedBuilder {
 	const embed = new EmbedBuilder()
-		.setTitle(`${incident.status === 'resolved' ? '[解決済み] ' : ''}${incident.name}`)
+		.setAuthor({ name: `${serviceName} Status`, url: baseUrl })
+		.setTitle(`${incident.status === 'resolved' ? '[解決済み] ' : ''}[${serviceName}] ${incident.name}`)
 		.setURL(incident.shortlink)
 		.setDescription(
 			[
@@ -147,9 +148,14 @@ export function createIncidentEmbed(incident: StatusIncident): EmbedBuilder {
 	return embed;
 }
 
-export function createMaintenanceEmbed(maintenance: StatusMaintenance): EmbedBuilder {
+export function createMaintenanceEmbed(
+	serviceName: string,
+	baseUrl: string,
+	maintenance: StatusMaintenance,
+): EmbedBuilder {
 	return new EmbedBuilder()
-		.setTitle(`${maintenance.status === 'completed' ? '[完了] ' : ''}${maintenance.name}`)
+		.setAuthor({ name: `${serviceName} Status`, url: baseUrl })
+		.setTitle(`${maintenance.status === 'completed' ? '[完了] ' : ''}[${serviceName}] ${maintenance.name}`)
 		.setURL(maintenance.shortlink)
 		.setDescription(
 			[

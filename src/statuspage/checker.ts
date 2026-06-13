@@ -131,7 +131,7 @@ async function processIncidents(
 	for (const incident of incidents) {
 		const previousEvent = await findStatusPageEvent(statusPage.id, 'incident', incident.id);
 		const latestUpdateId = incident.incident_updates[0]?.id ?? null;
-		const embed = createIncidentEmbed(incident);
+		const embed = createIncidentEmbed(statusPage.name, statusPage.baseUrl, incident);
 		const messageId = await upsertEventMessage({
 			channel: incidentChannel,
 			content: previousEvent ? undefined : createMentionContent(statusPage.mentionRoleId),
@@ -198,7 +198,7 @@ async function processMaintenances(
 	for (const maintenance of maintenances) {
 		const previousEvent = await findStatusPageEvent(statusPage.id, 'maintenance', maintenance.id);
 		const latestUpdateId = maintenance.incident_updates[0]?.id ?? null;
-		const embed = createMaintenanceEmbed(maintenance);
+		const embed = createMaintenanceEmbed(statusPage.name, statusPage.baseUrl, maintenance);
 		const messageId = await upsertEventMessage({
 			channel: incidentChannel,
 			content: previousEvent ? undefined : createMentionContent(statusPage.mentionRoleId),
