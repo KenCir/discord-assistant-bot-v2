@@ -1,0 +1,101 @@
+name: GHCR Cleanup
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: '削除せず対象だけログに出す'
+        required: true
+        type: boolean
+        default: true
+      keep_versions:
+        description: 'latest/semver以外で残すversion数'
+        required: true
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  cleanup:
+    name: Delete old GHCR versions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Cleanup package versions
+        uses: actions/github-script@v8
+        env:
+          DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || 'false' }}
+          KEEP_VERSIONS: ${{ github.event_name == 'workflow_dispatch' && inputs.keep_versions || '20' }}
+        with:
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const keepVersions = Number(process.env.KEEP_VERSIONS);
+            const dryRun = process.env.DRY_RUN === 'true';
+            const packageName = repo;
+            const packageType = 'container';
+            const repoInfo = await github.rest.repos.get({ owner, repo });
+            const ownerType = repoInfo.data.owner.type;
+            const isOrganization = ownerType === 'Organization';
+
+            const listRoute = isOrganization
+              ? 'GET /orgs/{org}/packages/{package_type}/{package_name}/versions'
+              : 'GET /user/packages/{package_type}/{package_name}/versions';
+            const deleteRoute = isOrganization
+              ? 'DELETE /orgs/{org}/packages/{package_type}/{package_name}/versions/{package_version_id}'
+              : 'DELETE /user/packages/{package_type}/{package_name}/versions/{package_version_id}';
+            const baseParams = isOrganization
+              ? { org: owner, package_type: packageType, package_name: packageName }
+              : { package_type: packageType, package_name: packageName };
+
+            let versions = [];
+
+            try {
+              versions = await github.paginate(listRoute, {
+                ...baseParams,
+                per_page: 100,
+              });
+            } catch (error) {
+              if (error.status === 404) {
+                core.warning(`Package was not found: ${packageName}`);
+                return;
+              }
+
+              throw error;
+            }
+
+            const protectedTagPattern = /^(latest|v?\d+\.\d+|v?\d+\.\d+\.\d+)$/;
+            const isProtected = (version) => {
+              const tags = version.metadata?.container?.tags ?? [];
+              return tags.some((tag) => protectedTagPattern.test(tag));
+            };
+            const formatVersion = (version) => {
+              const tags = version.metadata?.container?.tags ?? [];
+              return `${version.id} ${version.created_at} [${tags.join(', ') || 'untagged'}]`;
+            };
+
+            const deletable = versions
+              .filter((version) => !isProtected(version))
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(keepVersions);
+
+            core.info(`Found ${versions.length} versions.`);
+            core.info(`Will keep protected versions and ${keepVersions} newest non-protected versions.`);
+            core.info(`${dryRun ? 'Dry run:' : 'Deleting'} ${deletable.length} versions.`);
+
+            for (const version of deletable) {
+              core.info(`${dryRun ? 'Would delete' : 'Deleting'} ${formatVersion(version)}`);
+
+              if (dryRun) {
+                continue;
+              }
+
+              await github.request(deleteRoute, {
+                ...baseParams,
+                package_version_id: version.id,
+              });
+            }
