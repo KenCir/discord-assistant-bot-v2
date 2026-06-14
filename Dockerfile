@@ -27,10 +27,6 @@ COPY . .
 RUN pnpm run build
 RUN pnpm prune --prod
 
-FROM deps AS migration
-COPY . .
-CMD ["pnpm", "db:migrate"]
-
 FROM node:24.16.0-slim
 WORKDIR /app
 ENV NODE_ENV=production
@@ -45,5 +41,6 @@ RUN apt-get update && apt-get install -y \
 COPY --from=build --chown=node:node /app/package.json /app/LICENSE ./
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/dist ./dist
+COPY --from=build --chown=node:node /app/drizzle ./drizzle
 USER node
-CMD ["node", "dist/index.js"]
+CMD ["sh", "-c", "node dist/util/migrate.js && node dist/index.js"]

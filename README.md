@@ -293,16 +293,20 @@ Bot からのDB接続セッションは `Asia/Tokyo` で接続します。Postgr
 
 ## セットアップ
 
-Docker Compose で PostgreSQL を起動します。
+Docker Compose で起動します。
 
 ```sh
-docker compose up -d postgres
+docker compose up -d
 ```
 
-Docker Compose でマイグレーションを実行します。
+`app` は `postgres` の healthcheck が成功してから起動します。
+Bot起動前に未適用のDBマイグレーションを自動適用します。
+
+GHCR のビルド済みイメージを使う場合は、先に pull します。
 
 ```sh
-docker compose run --profile tools --rm migrate
+docker compose pull app
+docker compose up -d
 ```
 
 Discord のスラッシュコマンドを登録します。
@@ -311,25 +315,11 @@ Discord のスラッシュコマンドを登録します。
 docker compose run --rm app node dist/util/deploy.js
 ```
 
-BotをDocker Composeで起動します。
-
-```sh
-docker compose up -d app
-```
-
 ログを確認します。
 
 ```sh
 docker compose logs -f app
 ```
-
-Botを含めてまとめて起動する場合は以下でも問題ありません。
-
-```sh
-docker compose up -d
-```
-
-`app` は `postgres` の healthcheck が成功してから起動します。
 
 ## ローカル開発
 
@@ -351,10 +341,11 @@ pnpm db:generate --name=change-name
 
 生成された `drizzle/` 配下の migration ファイルはコミット対象です。
 
-未適用の migration をDBへ適用します。
+Docker Compose で起動する場合、未適用の migration はBot起動時に自動適用されます。
+ホストPCから手動で適用したい場合は以下を実行します。
 
 ```sh
-docker compose run --rm migrate
+pnpm db:migrate
 ```
 
 ## 開発用コマンド
