@@ -302,7 +302,7 @@ docker compose up -d postgres
 Docker Compose でマイグレーションを実行します。
 
 ```sh
-docker compose run --rm migrate
+docker compose run --profile tools --rm migrate
 ```
 
 Discord のスラッシュコマンドを登録します。
