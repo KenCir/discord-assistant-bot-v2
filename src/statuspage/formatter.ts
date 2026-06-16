@@ -22,6 +22,8 @@ export function formatStatusIndicator(indicator: StatusIndicator): string {
 			return '大規模なシステム障害が発生中';
 		case 'critical':
 			return 'システム全体の停止が発生中';
+		default:
+			return `未対応のステータス (${indicator})`;
 	}
 }
 
@@ -101,7 +103,7 @@ export function createStatusEmbed(
 				`予定メンテナンス: **${summary.scheduled_maintenances.length}件**`,
 			].join('\n'),
 		)
-		.setColor(summary.status.indicator === 'none' ? 'Green' : indicatorToColor(summary.status.indicator))
+		.setColor(indicatorToColor(summary.status.indicator))
 		.setTimestamp(checkedAt);
 
 	if (affectedComponents.length > 0) {
@@ -169,14 +171,18 @@ export function createMaintenanceEmbed(
 		.setTimestamp(new Date(maintenance.updated_at));
 }
 
-function indicatorToColor(indicator: Exclude<StatusIndicator, 'none'>): 'Orange' | 'Red' | 'Yellow' {
+function indicatorToColor(indicator: StatusIndicator): 'Green' | 'Grey' | 'Orange' | 'Red' | 'Yellow' {
 	switch (indicator) {
+		case 'none':
+			return 'Green';
 		case 'minor':
 			return 'Yellow';
 		case 'major':
 			return 'Orange';
 		case 'critical':
 			return 'Red';
+		default:
+			return 'Grey';
 	}
 }
 
