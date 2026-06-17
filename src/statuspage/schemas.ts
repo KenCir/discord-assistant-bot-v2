@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 const DateTimeOffset = z.iso.datetime({ offset: true });
 
-export const KnownStatusIndicatorSchema = z.enum(['none', 'minor', 'major', 'critical']);
+export const KnownStatusIndicatorSchema = z.enum(['none', 'minor', 'major', 'critical', 'maintenance']);
 export const StatusIndicatorSchema = z.union([KnownStatusIndicatorSchema, z.string().min(1)]);
 
 export const ComponentStatusSchema = z.enum([
