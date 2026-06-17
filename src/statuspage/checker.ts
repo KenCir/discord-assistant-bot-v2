@@ -4,7 +4,13 @@ import { getFixedStatuspageChannels } from './channels.js';
 import { fetchStatusSummary } from './client.js';
 import { formatStoredError } from './errors.js';
 import { createIncidentEmbed, createMaintenanceEmbed, createStatusEmbed } from './formatter.js';
-import { findStatusPageEvent, updateStatusPageLastCheck, upsertStatusPageEvent } from './repository.js';
+import {
+	findStatusPageEvent,
+	listUnresolvedStatusPageEvents,
+	resolveStatusPageEvent,
+	updateStatusPageLastCheck,
+	upsertStatusPageEvent,
+} from './repository.js';
 import type { StatusIncident, StatusMaintenance } from './schemas.js';
 
 export type StatusPageCheckResult =
@@ -127,6 +133,7 @@ async function processIncidents(
 	incidents: StatusIncident[],
 ): Promise<number> {
 	let notificationCount = 0;
+	const currentIncidentIds = new Set(incidents.map((incident) => incident.id));
 
 	for (const incident of incidents) {
 		const previousEvent = await findStatusPageEvent(statusPage.id, 'incident', incident.id);
@@ -185,6 +192,17 @@ async function processIncidents(
 		});
 	}
 
+	notificationCount += await processRemovedEvents({
+		channel: incidentChannel,
+		currentExternalIds: currentIncidentIds,
+		eventType: 'incident',
+		message: createMentionContent(statusPage.mentionRoleId, 'インシデントは解決されました。'),
+		roleId: statusPage.mentionRoleId,
+		status: 'resolved',
+		statusPageId: statusPage.id,
+		titlePrefix: '[解決済み] ',
+	});
+
 	return notificationCount;
 }
 
@@ -194,6 +212,7 @@ async function processMaintenances(
 	maintenances: StatusMaintenance[],
 ): Promise<number> {
 	let notificationCount = 0;
+	const currentMaintenanceIds = new Set(maintenances.map((maintenance) => maintenance.id));
 
 	for (const maintenance of maintenances) {
 		const previousEvent = await findStatusPageEvent(statusPage.id, 'maintenance', maintenance.id);
@@ -255,7 +274,102 @@ async function processMaintenances(
 		});
 	}
 
+	notificationCount += await processRemovedEvents({
+		channel: incidentChannel,
+		currentExternalIds: currentMaintenanceIds,
+		eventType: 'maintenance',
+		message: 'メンテナンスは完了しました。',
+		roleId: null,
+		status: 'completed',
+		statusPageId: statusPage.id,
+		titlePrefix: '[完了] ',
+	});
+
 	return notificationCount;
+}
+
+async function processRemovedEvents({
+	channel,
+	currentExternalIds,
+	eventType,
+	message,
+	roleId,
+	status,
+	statusPageId,
+	titlePrefix,
+}: {
+	channel: GuildTextBasedChannel;
+	currentExternalIds: Set<string>;
+	eventType: 'incident' | 'maintenance';
+	message: string | undefined;
+	roleId: string | null;
+	status: 'completed' | 'resolved';
+	statusPageId: string;
+	titlePrefix: string;
+}): Promise<number> {
+	const unresolvedEvents = await listUnresolvedStatusPageEvents(statusPageId, eventType);
+	let notificationCount = 0;
+
+	for (const event of unresolvedEvents) {
+		if (currentExternalIds.has(event.externalId)) {
+			continue;
+		}
+
+		const resolvedAt = new Date();
+
+		if (event.messageId) {
+			const notified = await notifyRemovedEvent(channel, event.messageId, message, roleId, titlePrefix, resolvedAt);
+
+			if (notified) {
+				notificationCount += 1;
+			}
+		}
+
+		await resolveStatusPageEvent(event.id, { resolvedAt, status });
+	}
+
+	return notificationCount;
+}
+
+async function notifyRemovedEvent(
+	channel: GuildTextBasedChannel,
+	messageId: string,
+	message: string | undefined,
+	roleId: string | null,
+	titlePrefix: string,
+	resolvedAt: Date,
+): Promise<boolean> {
+	try {
+		await markEventMessageClosed(channel, messageId, titlePrefix, resolvedAt);
+		await replyToEventMessage(channel, messageId, message, roleId);
+		return true;
+	} catch {
+		// The event was still closed in Statuspage even if the Discord message no longer exists.
+		return false;
+	}
+}
+
+async function markEventMessageClosed(
+	channel: GuildTextBasedChannel,
+	messageId: string,
+	titlePrefix: string,
+	resolvedAt: Date,
+): Promise<void> {
+	const message = await channel.messages.fetch(messageId);
+	const currentEmbed = message.embeds[0];
+
+	if (!currentEmbed) {
+		return;
+	}
+
+	const embed = EmbedBuilder.from(currentEmbed).setColor('Green').setTimestamp(resolvedAt);
+	const title = currentEmbed.title;
+
+	if (title && !title.startsWith(titlePrefix)) {
+		embed.setTitle(`${titlePrefix}${title}`);
+	}
+
+	await message.edit({ embeds: [embed] });
 }
 
 async function upsertEventMessage({

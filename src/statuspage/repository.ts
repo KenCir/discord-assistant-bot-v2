@@ -1,4 +1,4 @@
-import { and, eq, or } from 'drizzle-orm';
+import { and, eq, isNull, or } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { type NewStatusPage, type NewStatusPageEvent, statusPageEvents, statusPages } from '../db/schema.js';
 
@@ -140,6 +140,34 @@ export async function findStatusPageEvent(
 			eq(statusPageEvents.externalId, externalId),
 		),
 	});
+}
+
+export async function listUnresolvedStatusPageEvents(statusPageId: string, eventType: 'incident' | 'maintenance') {
+	return db.query.statusPageEvents.findMany({
+		where: and(
+			eq(statusPageEvents.statusPageId, statusPageId),
+			eq(statusPageEvents.eventType, eventType),
+			isNull(statusPageEvents.resolvedAt),
+		),
+	});
+}
+
+export async function resolveStatusPageEvent(id: string, values: { resolvedAt: Date; status: string }) {
+	const [event] = await db
+		.update(statusPageEvents)
+		.set({
+			resolvedAt: values.resolvedAt,
+			status: values.status,
+			updatedAt: new Date(),
+		})
+		.where(eq(statusPageEvents.id, id))
+		.returning();
+
+	if (!event) {
+		throw new Error('Failed to resolve status page event.');
+	}
+
+	return event;
 }
 
 export async function upsertStatusPageEvent(values: NewStatusPageEvent) {
