@@ -199,6 +199,7 @@ async function processIncidents(
 		message: createMentionContent(statusPage.mentionRoleId, 'インシデントは解決されました。'),
 		roleId: statusPage.mentionRoleId,
 		status: 'resolved',
+		statusLabel: '解決済み',
 		statusPageId: statusPage.id,
 		titlePrefix: '[解決済み] ',
 	});
@@ -281,6 +282,7 @@ async function processMaintenances(
 		message: 'メンテナンスは完了しました。',
 		roleId: null,
 		status: 'completed',
+		statusLabel: '完了',
 		statusPageId: statusPage.id,
 		titlePrefix: '[完了] ',
 	});
@@ -295,6 +297,7 @@ async function processRemovedEvents({
 	message,
 	roleId,
 	status,
+	statusLabel,
 	statusPageId,
 	titlePrefix,
 }: {
@@ -304,6 +307,7 @@ async function processRemovedEvents({
 	message: string | undefined;
 	roleId: string | null;
 	status: 'completed' | 'resolved';
+	statusLabel: string;
 	statusPageId: string;
 	titlePrefix: string;
 }): Promise<number> {
@@ -318,7 +322,15 @@ async function processRemovedEvents({
 		const resolvedAt = new Date();
 
 		if (event.messageId) {
-			const notified = await notifyRemovedEvent(channel, event.messageId, message, roleId, titlePrefix, resolvedAt);
+			const notified = await notifyRemovedEvent(
+				channel,
+				event.messageId,
+				message,
+				roleId,
+				titlePrefix,
+				statusLabel,
+				resolvedAt,
+			);
 
 			if (notified) {
 				notificationCount += 1;
@@ -337,10 +349,11 @@ async function notifyRemovedEvent(
 	message: string | undefined,
 	roleId: string | null,
 	titlePrefix: string,
+	statusLabel: string,
 	resolvedAt: Date,
 ): Promise<boolean> {
 	try {
-		await markEventMessageClosed(channel, messageId, titlePrefix, resolvedAt);
+		await markEventMessageClosed(channel, messageId, titlePrefix, statusLabel, resolvedAt);
 		await replyToEventMessage(channel, messageId, message, roleId);
 		return true;
 	} catch {
@@ -353,6 +366,7 @@ async function markEventMessageClosed(
 	channel: GuildTextBasedChannel,
 	messageId: string,
 	titlePrefix: string,
+	statusLabel: string,
 	resolvedAt: Date,
 ): Promise<void> {
 	const message = await channel.messages.fetch(messageId);
@@ -364,12 +378,21 @@ async function markEventMessageClosed(
 
 	const embed = EmbedBuilder.from(currentEmbed).setColor('Green').setTimestamp(resolvedAt);
 	const title = currentEmbed.title;
+	const description = currentEmbed.description;
 
 	if (title && !title.startsWith(titlePrefix)) {
 		embed.setTitle(`${titlePrefix}${title}`);
 	}
 
+	if (description) {
+		embed.setDescription(updateClosedEmbedDescription(description, statusLabel));
+	}
+
 	await message.edit({ embeds: [embed] });
+}
+
+function updateClosedEmbedDescription(description: string, statusLabel: string): string {
+	return description.replace(/^ステータス: \*\*.+?\*\*/m, `ステータス: **${statusLabel}**`);
 }
 
 async function upsertEventMessage({
