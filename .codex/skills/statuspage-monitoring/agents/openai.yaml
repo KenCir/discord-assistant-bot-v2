@@ -1,0 +1,7 @@
+interface:
+  display_name: "Statuspage Monitoring"
+  short_description: "Statuspage monitoring maintenance workflow"
+  default_prompt: "Use $statuspage-monitoring to update the Statuspage monitoring feature in this project."
+
+policy:
+  allow_implicit_invocation: true

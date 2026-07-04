@@ -1,0 +1,7 @@
+interface:
+  display_name: "Drizzle DB Change"
+  short_description: "Drizzle schema and migration workflow"
+  default_prompt: "Use $drizzle-db-change to plan and apply a Drizzle schema or migration change in this project."
+
+policy:
+  allow_implicit_invocation: true

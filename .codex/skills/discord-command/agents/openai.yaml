@@ -1,0 +1,7 @@
+interface:
+  display_name: "Discord Command"
+  short_description: "Discord slash command workflow for this bot"
+  default_prompt: "Use $discord-command to add or modify a Discord slash command in this project."
+
+policy:
+  allow_implicit_invocation: true
