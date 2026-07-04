@@ -15,6 +15,12 @@ export async function findStatusPageByGuildAndBaseUrl(guildId: string, baseUrl: 
 	});
 }
 
+export async function findStatusPageById(id: string) {
+	return db.query.statusPages.findFirst({
+		where: eq(statusPages.id, id),
+	});
+}
+
 export async function findStatusPageByTarget({ guildId, target }: StatusPageTarget) {
 	const targetConditions = [eq(statusPages.name, target), eq(statusPages.baseUrl, target)];
 

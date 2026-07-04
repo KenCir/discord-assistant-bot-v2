@@ -1,4 +1,5 @@
 import { Events } from 'discord.js';
+import { handleStatuspageForceRefreshButton } from '../statuspage/forceRefreshButton.js';
 import { loadCommands } from '../util/loaders.js';
 import type { Event } from './index.js';
 
@@ -7,6 +8,10 @@ const commands = await loadCommands(new URL('../commands/', import.meta.url));
 export default {
 	name: Events.InteractionCreate,
 	async execute(interaction) {
+		if (interaction.isButton() && (await handleStatuspageForceRefreshButton(interaction))) {
+			return;
+		}
+
 		if (interaction.isCommand()) {
 			const command = commands.get(interaction.commandName);
 

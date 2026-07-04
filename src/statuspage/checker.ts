@@ -1,5 +1,6 @@
 import { EmbedBuilder, type Client, type GuildTextBasedChannel } from 'discord.js';
 import type { StatusPage } from '../db/schema.js';
+import { createStatuspageStatusMessageComponents } from './buttons.js';
 import { getFixedStatuspageChannels } from './channels.js';
 import { fetchStatusSummary } from './client.js';
 import { formatStoredError } from './errors.js';
@@ -26,16 +27,29 @@ export type StatusPageCheckResult =
 			type: 'not_modified';
 	  };
 
-export async function checkStatusPage(client: Client, statusPage: StatusPage): Promise<StatusPageCheckResult> {
+export type StatusPageCheckOptions = {
+	forceRefresh?: boolean;
+};
+
+export async function checkStatusPage(
+	client: Client,
+	statusPage: StatusPage,
+	options: StatusPageCheckOptions = {},
+): Promise<StatusPageCheckResult> {
 	const checkedAt = new Date();
 
 	try {
 		const { incidentChannel, statusChannel } = await getFixedStatuspageChannels(client);
-		const etag = statusPage.statusMessageId ? statusPage.lastEtag : null;
+		const etag = options.forceRefresh ? null : statusPage.statusMessageId ? statusPage.lastEtag : null;
 		const result = await fetchStatusSummary(statusPage.baseUrl, etag);
 
 		if (result.type === 'not_modified') {
-			const statusMessageId = await updateStatusMessageCheckedAt(statusChannel, statusPage.statusMessageId, checkedAt);
+			const statusMessageId = await updateStatusMessageCheckedAt(
+				statusChannel,
+				statusPage.statusMessageId,
+				statusPage.id,
+				checkedAt,
+			);
 			await updateStatusPageLastCheck(statusPage.id, {
 				lastCheckedAt: checkedAt,
 				lastError: null,
@@ -47,7 +61,7 @@ export async function checkStatusPage(client: Client, statusPage: StatusPage): P
 		}
 
 		const embed = createStatusEmbed(statusPage.name, statusPage.baseUrl, result.data, checkedAt);
-		const statusMessageId = await upsertStatusMessage(statusChannel, statusPage.statusMessageId, embed);
+		const statusMessageId = await upsertStatusMessage(statusChannel, statusPage.statusMessageId, statusPage.id, embed);
 		const incidentNotifications = await processIncidents(incidentChannel, statusPage, result.data.incidents);
 		const maintenanceNotifications = await processMaintenances(
 			incidentChannel,
@@ -78,12 +92,15 @@ export async function checkStatusPage(client: Client, statusPage: StatusPage): P
 async function upsertStatusMessage(
 	statusChannel: GuildTextBasedChannel,
 	statusMessageId: string | null,
+	statusPageId: string,
 	embed: ReturnType<typeof createStatusEmbed>,
 ): Promise<string> {
+	const components = createStatuspageStatusMessageComponents(statusPageId);
+
 	if (statusMessageId) {
 		try {
 			const message = await statusChannel.messages.fetch(statusMessageId);
-			const updated = await message.edit({ embeds: [embed] });
+			const updated = await message.edit({ components, embeds: [embed] });
 
 			return updated.id;
 		} catch {
@@ -91,7 +108,7 @@ async function upsertStatusMessage(
 		}
 	}
 
-	const message = await statusChannel.send({ embeds: [embed] });
+	const message = await statusChannel.send({ components, embeds: [embed] });
 
 	return message.id;
 }
@@ -99,6 +116,7 @@ async function upsertStatusMessage(
 async function updateStatusMessageCheckedAt(
 	statusChannel: GuildTextBasedChannel,
 	statusMessageId: string | null,
+	statusPageId: string,
 	checkedAt: Date,
 ): Promise<string | null> {
 	if (!statusMessageId) {
@@ -119,7 +137,7 @@ async function updateStatusMessageCheckedAt(
 		);
 
 		embed.setFields(fields);
-		await message.edit({ embeds: [embed] });
+		await message.edit({ components: createStatuspageStatusMessageComponents(statusPageId), embeds: [embed] });
 		return statusMessageId;
 	} catch {
 		// If the message disappeared, the next modified response will recreate it.
@@ -388,11 +406,23 @@ async function markEventMessageClosed(
 		embed.setDescription(updateClosedEmbedDescription(description, statusLabel));
 	}
 
+	if (currentEmbed.fields.length > 0) {
+		embed.setFields(
+			currentEmbed.fields.map((field, index) =>
+				index === 0 ? { ...field, name: updateClosedEmbedFieldName(field.name, statusLabel) } : field,
+			),
+		);
+	}
+
 	await message.edit({ embeds: [embed] });
 }
 
 function updateClosedEmbedDescription(description: string, statusLabel: string): string {
-	return description.replace(/^ステータス: \*\*.+?\*\*/m, `ステータス: **${statusLabel}**`);
+	return description.replace(/^ステータス: (?:\*\*)?.+?(?:\*\*)?$/m, `ステータス: **${statusLabel}**`);
+}
+
+function updateClosedEmbedFieldName(name: string, statusLabel: string): string {
+	return name.replace(/ - .+$/, ` - ${statusLabel}`);
 }
 
 async function upsertEventMessage({
