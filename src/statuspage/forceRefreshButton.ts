@@ -57,6 +57,17 @@ export async function handleStatuspageForceRefreshButton(interaction: ButtonInte
 		forceRefreshCooldowns.set(cooldownKey, now);
 		const result = await checkStatusPage(interaction.client, statusPage, { forceRefresh: true });
 
+		if (result.type === 'stale') {
+			await interaction.editReply(
+				[
+					`${statusPage.name} の強制再取得結果は反映しませんでした。`,
+					'この確認より新しいチェック結果が既に保存されています。',
+					`確認開始: <t:${Math.floor(result.checkedAt.getTime() / 1_000)}:F>`,
+				].join('\n'),
+			);
+			return true;
+		}
+
 		if (result.type === 'not_modified') {
 			await interaction.editReply(
 				[

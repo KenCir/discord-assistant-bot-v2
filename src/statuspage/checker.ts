@@ -6,6 +6,7 @@ import { fetchStatusSummary } from './client.js';
 import { formatStoredError } from './errors.js';
 import { createIncidentEmbed, createMaintenanceEmbed, createStatusEmbed } from './formatter.js';
 import {
+	findStatusPageById,
 	findStatusPageEvent,
 	listUnresolvedStatusPageEvents,
 	resolveStatusPageEvent,
@@ -25,6 +26,10 @@ export type StatusPageCheckResult =
 	| {
 			checkedAt: Date;
 			type: 'not_modified';
+	  }
+	| {
+			checkedAt: Date;
+			type: 'stale';
 	  };
 
 export type StatusPageCheckOptions = {
@@ -42,6 +47,10 @@ export async function checkStatusPage(
 		const { incidentChannel, statusChannel } = await getFixedStatuspageChannels(client);
 		const etag = options.forceRefresh ? null : statusPage.statusMessageId ? statusPage.lastEtag : null;
 		const result = await fetchStatusSummary(statusPage.baseUrl, etag);
+
+		if (await isStaleStatusPageCheck(statusPage.id, checkedAt)) {
+			return { checkedAt, type: 'stale' };
+		}
 
 		if (result.type === 'not_modified') {
 			const statusMessageId = await updateStatusMessageCheckedAt(
@@ -87,6 +96,16 @@ export async function checkStatusPage(
 
 		throw error;
 	}
+}
+
+async function isStaleStatusPageCheck(statusPageId: string, checkedAt: Date): Promise<boolean> {
+	const latestStatusPage = await findStatusPageById(statusPageId);
+
+	if (!latestStatusPage) {
+		return true;
+	}
+
+	return latestStatusPage.lastCheckedAt !== null && latestStatusPage.lastCheckedAt.getTime() > checkedAt.getTime();
 }
 
 async function upsertStatusMessage(

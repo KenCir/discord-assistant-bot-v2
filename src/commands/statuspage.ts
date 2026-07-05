@@ -484,6 +484,17 @@ async function handleRefresh(interaction: ChatInputCommandInteraction, guildId: 
 	try {
 		const result = await checkStatusPage(interaction.client, statusPage);
 
+		if (result.type === 'stale') {
+			await interaction.editReply(
+				[
+					`${statusPage.name} の refresh 結果は反映しませんでした。`,
+					'この確認より新しいチェック結果が既に保存されています。',
+					`確認開始: <t:${Math.floor(result.checkedAt.getTime() / 1_000)}:F>`,
+				].join('\n'),
+			);
+			return;
+		}
+
 		if (result.type === 'not_modified') {
 			await interaction.editReply(
 				[
