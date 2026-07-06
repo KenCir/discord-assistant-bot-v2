@@ -13,24 +13,37 @@ import {
 	updateStatusPageLastCheck,
 	upsertStatusPageEvent,
 } from './repository.js';
-import type { StatusIncident, StatusMaintenance } from './schemas.js';
+import type { StatusIncident, StatusMaintenance, StatusSummary } from './schemas.js';
+
+type StatusPageIgnoredInconsistentCheckResult = {
+	checkedAt: Date;
+	reason: 'maintenance_without_events';
+	type: 'ignored_inconsistent';
+};
+
+type StatusPageNotModifiedCheckResult = {
+	checkedAt: Date;
+	type: 'not_modified';
+};
+
+type StatusPageStaleCheckResult = {
+	checkedAt: Date;
+	type: 'stale';
+};
+
+type StatusPageUpdatedCheckResult = {
+	checkedAt: Date;
+	incidentNotifications: number;
+	maintenanceNotifications: number;
+	statusMessageId: string;
+	type: 'updated';
+};
 
 export type StatusPageCheckResult =
-	| {
-			checkedAt: Date;
-			incidentNotifications: number;
-			maintenanceNotifications: number;
-			statusMessageId: string;
-			type: 'updated';
-	  }
-	| {
-			checkedAt: Date;
-			type: 'not_modified';
-	  }
-	| {
-			checkedAt: Date;
-			type: 'stale';
-	  };
+	| StatusPageIgnoredInconsistentCheckResult
+	| StatusPageNotModifiedCheckResult
+	| StatusPageStaleCheckResult
+	| StatusPageUpdatedCheckResult;
 
 export type StatusPageCheckOptions = {
 	forceRefresh?: boolean;
@@ -47,8 +60,9 @@ export async function checkStatusPage(
 		const { incidentChannel, statusChannel } = await getFixedStatuspageChannels(client);
 		const etag = options.forceRefresh ? null : statusPage.statusMessageId ? statusPage.lastEtag : null;
 		const result = await fetchStatusSummary(statusPage.baseUrl, etag);
+		const latestStatusPage = await findStatusPageById(statusPage.id);
 
-		if (await isStaleStatusPageCheck(statusPage.id, checkedAt)) {
+		if (!latestStatusPage || isStaleStatusPageCheck(latestStatusPage, checkedAt)) {
 			return { checkedAt, type: 'stale' };
 		}
 
@@ -67,6 +81,23 @@ export async function checkStatusPage(
 			});
 
 			return { checkedAt, type: 'not_modified' };
+		}
+
+		if (isInconsistentMaintenanceOnlySummary(latestStatusPage, result.data)) {
+			const statusMessageId = await updateStatusMessageCheckedAt(
+				statusChannel,
+				statusPage.statusMessageId,
+				statusPage.id,
+				checkedAt,
+			);
+			await updateStatusPageLastCheck(statusPage.id, {
+				lastCheckedAt: checkedAt,
+				lastError: null,
+				lastSuccessAt: checkedAt,
+				statusMessageId,
+			});
+
+			return { checkedAt, reason: 'maintenance_without_events', type: 'ignored_inconsistent' };
 		}
 
 		const embed = createStatusEmbed(statusPage.name, statusPage.baseUrl, result.data, checkedAt);
@@ -98,14 +129,22 @@ export async function checkStatusPage(
 	}
 }
 
-async function isStaleStatusPageCheck(statusPageId: string, checkedAt: Date): Promise<boolean> {
-	const latestStatusPage = await findStatusPageById(statusPageId);
+function isStaleStatusPageCheck(latestStatusPage: StatusPage, checkedAt: Date): boolean {
+	return latestStatusPage.lastCheckedAt !== null && latestStatusPage.lastCheckedAt.getTime() > checkedAt.getTime();
+}
 
-	if (!latestStatusPage) {
-		return true;
+function isInconsistentMaintenanceOnlySummary(statusPage: StatusPage, summary: StatusSummary): boolean {
+	if (statusPage.lastStatusIndicator !== 'none' || summary.status.indicator !== 'maintenance') {
+		return false;
 	}
 
-	return latestStatusPage.lastCheckedAt !== null && latestStatusPage.lastCheckedAt.getTime() > checkedAt.getTime();
+	if (summary.incidents.length > 0 || summary.scheduled_maintenances.length > 0) {
+		return false;
+	}
+
+	const affectedComponents = summary.components.filter((component) => component.status !== 'operational');
+
+	return affectedComponents.every((component) => component.status === 'under_maintenance');
 }
 
 async function upsertStatusMessage(

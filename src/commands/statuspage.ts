@@ -484,6 +484,17 @@ async function handleRefresh(interaction: ChatInputCommandInteraction, guildId: 
 	try {
 		const result = await checkStatusPage(interaction.client, statusPage);
 
+		if (result.type === 'ignored_inconsistent') {
+			await interaction.editReply(
+				[
+					`${statusPage.name} を確認しましたが、表示は更新しませんでした。`,
+					'インシデントや予定メンテナンスがないメンテナンス状態のため、古い Statuspage レスポンスとして扱いました。',
+					`最終確認: <t:${Math.floor(result.checkedAt.getTime() / 1_000)}:F>`,
+				].join('\n'),
+			);
+			return;
+		}
+
 		if (result.type === 'stale') {
 			await interaction.editReply(
 				[

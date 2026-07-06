@@ -57,6 +57,17 @@ export async function handleStatuspageForceRefreshButton(interaction: ButtonInte
 		forceRefreshCooldowns.set(cooldownKey, now);
 		const result = await checkStatusPage(interaction.client, statusPage, { forceRefresh: true });
 
+		if (result.type === 'ignored_inconsistent') {
+			await interaction.editReply(
+				[
+					`${statusPage.name} を強制再取得しましたが、表示は更新しませんでした。`,
+					'インシデントや予定メンテナンスがないメンテナンス状態のため、古い Statuspage レスポンスとして扱いました。',
+					`最終確認: <t:${Math.floor(result.checkedAt.getTime() / 1_000)}:F>`,
+				].join('\n'),
+			);
+			return true;
+		}
+
 		if (result.type === 'stale') {
 			await interaction.editReply(
 				[
