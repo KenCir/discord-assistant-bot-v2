@@ -83,7 +83,7 @@ export async function checkStatusPage(
 			return { checkedAt, type: 'not_modified' };
 		}
 
-		if (isInconsistentMaintenanceOnlySummary(latestStatusPage, result.data)) {
+		if (isInconsistentMaintenanceOnlySummary(result.data)) {
 			const statusMessageId = await updateStatusMessageCheckedAt(
 				statusChannel,
 				statusPage.statusMessageId,
@@ -133,8 +133,8 @@ function isStaleStatusPageCheck(latestStatusPage: StatusPage, checkedAt: Date): 
 	return latestStatusPage.lastCheckedAt !== null && latestStatusPage.lastCheckedAt.getTime() > checkedAt.getTime();
 }
 
-function isInconsistentMaintenanceOnlySummary(statusPage: StatusPage, summary: StatusSummary): boolean {
-	if (statusPage.lastStatusIndicator !== 'none' || summary.status.indicator !== 'maintenance') {
+function isInconsistentMaintenanceOnlySummary(summary: StatusSummary): boolean {
+	if (summary.status.indicator !== 'maintenance') {
 		return false;
 	}
 
