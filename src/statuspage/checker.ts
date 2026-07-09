@@ -13,7 +13,8 @@ import {
 	updateStatusPageLastCheck,
 	upsertStatusPageEvent,
 } from './repository.js';
-import type { StatusIncident, StatusMaintenance, StatusSummary } from './schemas.js';
+import type { StatusIncident, StatusMaintenance } from './schemas.js';
+import { isInconsistentMaintenanceOnlySummary } from './summary.js';
 
 type StatusPageIgnoredInconsistentCheckResult = {
 	checkedAt: Date;
@@ -131,20 +132,6 @@ export async function checkStatusPage(
 
 function isStaleStatusPageCheck(latestStatusPage: StatusPage, checkedAt: Date): boolean {
 	return latestStatusPage.lastCheckedAt !== null && latestStatusPage.lastCheckedAt.getTime() > checkedAt.getTime();
-}
-
-function isInconsistentMaintenanceOnlySummary(summary: StatusSummary): boolean {
-	if (summary.status.indicator !== 'maintenance') {
-		return false;
-	}
-
-	if (summary.incidents.length > 0 || summary.scheduled_maintenances.length > 0) {
-		return false;
-	}
-
-	const affectedComponents = summary.components.filter((component) => component.status !== 'operational');
-
-	return affectedComponents.every((component) => component.status === 'under_maintenance');
 }
 
 async function upsertStatusMessage(

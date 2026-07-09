@@ -1,5 +1,6 @@
 import { EmbedBuilder } from 'discord.js';
 import type { ComponentStatus, StatusIncident, StatusIndicator, StatusMaintenance, StatusSummary } from './schemas.js';
+import { isInconsistentMaintenanceOnlySummary } from './summary.js';
 
 const maxEmbedFieldValueLength = 1_024;
 const maxDisplayedComponents = 10;
@@ -82,7 +83,12 @@ export function createStatusEmbed(
 	summary: StatusSummary,
 	checkedAt = new Date(),
 ): EmbedBuilder {
-	const affectedComponents = summary.components
+	const isInconsistentMaintenanceOnly = isInconsistentMaintenanceOnlySummary(summary);
+	const displayStatusIndicator: StatusIndicator = isInconsistentMaintenanceOnly ? 'none' : summary.status.indicator;
+	const displayComponents = isInconsistentMaintenanceOnly
+		? summary.components.filter((component) => component.status !== 'under_maintenance')
+		: summary.components;
+	const affectedComponents = displayComponents
 		.filter((component) => component.status !== 'operational')
 		.sort((a, b) => {
 			const priorityDiff = componentPriority[a.status] - componentPriority[b.status];
@@ -100,12 +106,12 @@ export function createStatusEmbed(
 		.setURL(baseUrl)
 		.setDescription(
 			[
-				`現在のステータス: **${formatStatusIndicator(summary.status.indicator)}**`,
+				`現在のステータス: **${formatStatusIndicator(displayStatusIndicator)}**`,
 				`発生中のインシデント: **${summary.incidents.length}件**`,
 				`予定メンテナンス: **${summary.scheduled_maintenances.length}件**`,
 			].join('\n'),
 		)
-		.setColor(indicatorToColor(summary.status.indicator))
+		.setColor(indicatorToColor(displayStatusIndicator))
 		.setTimestamp(checkedAt);
 
 	if (affectedComponents.length > 0) {
