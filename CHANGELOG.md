@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.3.0](https://github.com/KenCir/discord-assistant-bot-v2/compare/v1.2.0...v1.3.0) (2026-07-09)
+
+
+### Features
+
+* skillを追加 ([2492e1d](https://github.com/KenCir/discord-assistant-bot-v2/commit/2492e1deece4876ab45fcb3dfbf95fc53143a331))
+* ステータスの強制再取得ボタンを追加 ([a37249f](https://github.com/KenCir/discord-assistant-bot-v2/commit/a37249f3e2b5824b89826f247e5cdce261bc068f))
+* データ取得の排他制御を追加 ([e7f0fba](https://github.com/KenCir/discord-assistant-bot-v2/commit/e7f0fba90899377352b53b63389bdb4b6fde228a))
+
+
+### Bug Fixes
+
+* status pageの表記を直したはず ([6dd7382](https://github.com/KenCir/discord-assistant-bot-v2/commit/6dd738289b045dbcebfa48d3c4f510716babc627))
+* **statuspage:** ignore maintenance-only summary regardless of previous state ([1f62789](https://github.com/KenCir/discord-assistant-bot-v2/commit/1f6278905e2a0900fd08708aafa9e07669f58fb1))
+* **statuspage:** ignore stale maintenance-only status responses ([dd714e8](https://github.com/KenCir/discord-assistant-bot-v2/commit/dd714e8360019d9a9edd488b80ea0b8896562117))
+
 ## [1.2.0](https://github.com/KenCir/discord-assistant-bot-v2/compare/v1.1.0...v1.2.0) (2026-06-25)
 
 
